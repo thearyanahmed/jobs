@@ -26,8 +26,7 @@ class AppServiceProvider extends ServiceProvider
     protected function configureSecureUrls()
     {
         // Determine if HTTPS should be enforced
-        $enforceHttps = $this->app->environment(['production', 'staging'])
-            && !$this->app->runningUnitTests();
+        $enforceHttps = $this->shouldEnforceHttps();
 
         // Force HTTPS for all generated URLs
         URL::forceHttps($enforceHttps);
@@ -49,5 +48,36 @@ class AppServiceProvider extends ServiceProvider
                 ]);
             });
         }
+    }
+
+    protected function shouldEnforceHttps(): bool
+    {
+        // Don't enforce HTTPS during unit tests
+        if ($this->app->runningUnitTests()) {
+            return false;
+        }
+
+        // Check if we're in a production environment
+        if ($this->app->environment(['production', 'staging'])) {
+            return true;
+        }
+
+        // Check if the current request is already HTTPS
+        if ($this->app->bound('request') && $this->app['request']->isSecure()) {
+            return true;
+        }
+
+        // Check for DigitalOcean App Platform indicators
+        if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') {
+            return true;
+        }
+
+        // Check if APP_URL is HTTPS
+        $appUrl = config('app.url');
+        if ($appUrl && str_starts_with($appUrl, 'https://')) {
+            return true;
+        }
+
+        return false;
     }
 }
